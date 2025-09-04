@@ -29,6 +29,8 @@
 
 **→ [🎯 **LIVE DEMO PAGE**](https://kevanbtc.github.io/One-piece/) ←**
 
+> **Note**: If the GitHub Pages link shows 404, see [GitHub Pages Setup Guide](GITHUB_PAGES_SETUP.md) - it needs to be enabled in repository settings.
+
 Perfect for sharing with banks, investors, and partners:
 
 ```bash

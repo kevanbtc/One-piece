@@ -6,7 +6,8 @@
     "build": "hardhat compile",
     "deploy": "hardhat run scripts/deploy.ts --network amoy",
     "deploy:v2": "hardhat run scripts/deployV2.ts --network amoy",
-    "verify": "hardhat verify --network amoy"
+    "verify": "hardhat verify --network amoy",
+    "demo": "node serve-demo.js"
   },
   "devDependencies": {
     "@nomicfoundation/hardhat-toolbox": "^5.0.0",

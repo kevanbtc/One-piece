@@ -25,6 +25,20 @@
 
 ---
 
+## 🌐 **Public Demo** (30 seconds)
+
+**→ [🎯 **LIVE DEMO PAGE**](https://kevanbtc.github.io/One-piece/) ←**
+
+Perfect for sharing with banks, investors, and partners:
+
+```bash
+# Serve locally
+npm run demo
+# Open http://localhost:3333
+```
+
+---
+
 ## 🚀 Quick Start (10 minutes)
 
 ### Option 1: Automated Setup

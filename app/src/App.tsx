@@ -6,12 +6,19 @@ const VAULT_ADDRESS = import.meta.env.VITE_VAULT_ADDR || "";      // ProofOfFund
 const REGISTRY_ADDRESS = import.meta.env.VITE_REGISTRY_ADDR || ""; // AttesterRegistry
 const ERC20_DECIMALS = 6; // e.g., USDC on Polygon has 6
 
+// New envs
+const ATTEST_SERVICE_URL = import.meta.env.VITE_ATTEST_URL || "http://localhost:8787/attest";
+const KYC_REQUIRED = (import.meta.env.VITE_KYC_REQUIRED || "true") === "true";
+const SANCTIONS_DATE = import.meta.env.VITE_SANCTIONS_DATE || "2025-09-01";
+const UNIQUE_POLICY = import.meta.env.VITE_UNIQUE_POLICY || "per-asset"; // or "per-bank-ref"
+
 // Minimal ABI fragments
 const VAULT_ABI = [
   "function mintEscrow(address asset,uint256 amount,uint256 expiry) external returns (uint256)",
-  "function mintAttested(address account,address asset,uint256 amount,uint256 expiry,uint8 v,bytes32 r,bytes32 s) external returns (uint256)",
+  "function mintAttested(address account,address asset,uint256 amount,uint256 expiry,uint8 v,bytes32 r,bytes32 s,address kycProvider,bytes32 kycRef,bytes32 sanctionsVersion,string compliancePackCID,bytes32 licenseHash,bytes32 uniqueKey) external returns (uint256)",
   "function verify(uint256 tokenId,address requiredAsset,uint256 minAmount) external view returns (bool,string)",
   "function tokenURI(uint256 tokenId) external view returns (string)",
+  "function recordClientIp(uint256 tokenId,bytes32 clientIpHash) external",
 ];
 const ERC20_ABI = [
   "function approve(address spender,uint256 amount) external returns (bool)",
@@ -75,49 +82,52 @@ export default function App() {
     setTokenId(id);
   };
 
-  // Attested mint: show how to produce digest to be signed by an attester (demo: self-sign if whitelisted)
+  // Attested mint with V2 compliance integration
   const mintAttested = async () => {
     if (!vault || !signer) return alert("Connect wallet.");
     if (!asset) return alert("Enter asset.");
     const amt = parseUnits(amount, ERC20_DECIMALS);
     const exp = expiry ? BigInt(Math.floor(new Date(expiry).getTime() / 1000)) : 0n;
 
-    // DEMO: we assume the connected wallet IS a whitelisted attester for quick demo
-    // In production: call your attestation server to produce v,r,s
-    const domain = {
-      name: "ProofOfFundsVault",
-      version: "1",
+    // 1) Ask attestation-service for signature + compliance fields
+    const body = {
       chainId: await signer.provider!.getNetwork().then(n => Number(n.chainId)),
-      verifyingContract: VAULT_ADDRESS
-    };
-    const types = {
-      Attestation: [
-        { name: "account", type: "address" },
-        { name: "asset", type: "address" },
-        { name: "amount", type: "uint256" },
-        { name: "expiry", type: "uint256" },
-        { name: "nonce", type: "uint256" }
-      ]
-    };
-    // Simplification: we use nonce=0 for demo; real impl should query nonces(account) from the contract via a view (not exposed in ABI snippet here)
-    const value = {
+      vaultAddress: VAULT_ADDRESS,
       account: await signer.getAddress(),
-      asset, amount: amt, expiry: exp, nonce: 0
+      asset,
+      amount: amt.toString(),
+      expiry: Number(exp),
+      policy: { kycRequired: KYC_REQUIRED, sanctionsDate: SANCTIONS_DATE, uniquePolicy: UNIQUE_POLICY }
     };
-    // @ts-ignore
-    const sig = await (signer as any)._signTypedData(domain, types, value);
-    // parse sig
-    const bytes = sig.substring(2);
+
+    const resp = await fetch(ATTEST_SERVICE_URL, { 
+      method: "POST", 
+      headers: { "content-type": "application/json" }, 
+      body: JSON.stringify(body) 
+    });
+    if (!resp.ok) return alert("Attestation failed");
+    const { signature, kycProvider, kycRef, sanctionsVersion, compliancePackCID, licenseHash, uniqueKey, clientIpHash } = await resp.json();
+
+    const bytes = signature.slice(2);
     const r = "0x" + bytes.slice(0, 64);
     const s = "0x" + bytes.slice(64, 128);
     const v = parseInt(bytes.slice(128, 130), 16);
 
-    const tx = await vault.connect(signer).mintAttested(await signer.getAddress(), asset, amt, exp, v, r as any, s as any);
+    // 2) mintAttested with compliance args (new V2 signature)
+    const tx = await vault.connect(signer).mintAttested(
+      await signer.getAddress(), asset, amt, exp, v, r as any, s as any,
+      kycProvider, kycRef, sanctionsVersion, compliancePackCID, licenseHash, uniqueKey
+    );
     const rec = await tx.wait();
     const evt = rec?.logs?.find((l: any) => l.fragment?.name === "Minted");
     // @ts-ignore
     const id = evt?.args?.tokenId?.toString?.() ?? "";
     setTokenId(id);
+
+    // 3) Record salted IP hash on-chain (optional)
+    try {
+      await (await (vault as any).recordClientIp(BigInt(id), clientIpHash)).wait();
+    } catch { /* non-fatal */ }
   };
 
   const doVerify = async () => {
@@ -135,8 +145,8 @@ export default function App() {
 
   return (
     <div className="card">
-      <div className="title">Universal Proof-of-Funds (UPoF)</div>
-      <p className="muted">Mint a tamper-proof PoF NFT by locking ERC-20 funds (escrow) or using an attester signature (bank/custody). Share the NFT/QR as instant proof.</p>
+      <div className="title">Universal Proof-of-Funds (UPoF) V2</div>
+      <p className="muted">Enterprise-grade PoF with KYC/AML compliance. Mint by locking ERC-20 funds (escrow) or using compliant attestation (bank/custody). Features uniqueness guarantees, IP audit trails, and regulatory compliance.</p>
 
       {!address ? <button onClick={connect}>Connect Wallet</button> : <p className="muted">Connected: {address}</p>}
 

@@ -1,140 +1,77 @@
-#!/bin/bash
+#!/usr/bin/env bash
+set -euo pipefail
 
-# Universal Proof-of-Funds (UPoF) V2 - Quick Setup Script
-# This script sets up the complete UPoF system in under 10 minutes
+echo "== UPoF V2 bootstrap =="
 
-set -e  # Exit on any error
+# 0) sanity
+command -v node >/dev/null || { echo "Node is required"; exit 1; }
+command -v npm  >/dev/null || { echo "npm is required"; exit 1; }
 
-echo "🚀 Universal Proof-of-Funds (UPoF) V2 Setup"
-echo "============================================="
-echo ""
+# 1) root deps
+echo "[1/6] Installing root deps..."
+npm i
 
-# Colors for output
-RED='\033[0;31m'
-GREEN='\033[0;32m'
-YELLOW='\033[1;33m'
-BLUE='\033[0;34m'
-NC='\033[0m' # No Color
-
-# Check if we're in the right directory
-if [ ! -f "package.json" ] || [ ! -d "contracts" ]; then
-    echo -e "${RED}❌ Error: Run this script from the UPoF root directory${NC}"
-    exit 1
-fi
-
-echo -e "${BLUE}📋 Step 1: Installing contract dependencies...${NC}"
-npm install
-echo -e "${GREEN}✅ Contract dependencies installed${NC}"
-echo ""
-
-echo -e "${BLUE}🔨 Step 2: Compiling contracts...${NC}"
-npm run build
-echo -e "${GREEN}✅ Contracts compiled${NC}"
-echo ""
-
-# Check for environment file
+# 2) envs
+echo "[2/6] Writing .env if missing..."
 if [ ! -f ".env" ]; then
-    echo -e "${YELLOW}⚠️  No .env file found. Creating from template...${NC}"
-    cp .env.example .env
-    echo -e "${YELLOW}📝 Please edit .env file with your settings before deployment${NC}"
-    echo -e "${YELLOW}   Required: RPC_URL, PRIVATE_KEY${NC}"
-    echo ""
-else
-    echo -e "${GREEN}✅ Environment file found${NC}"
+  cat > .env <<EOF
+RPC_URL=${RPC_URL:-https://polygon-amoy.g.alchemy.com/v2/REPLACE_ME}
+PRIVATE_KEY=${PRIVATE_KEY:-0xYOUR_PRIVATE_KEY}
+POLYGONSCAN_KEY=${POLYGONSCAN_KEY:-REPLACE_ME}
+EOF
 fi
+echo " .env → ok"
 
-echo -e "${BLUE}📱 Step 3: Setting up frontend...${NC}"
-cd app
-npm install
-echo -e "${GREEN}✅ Frontend dependencies installed${NC}"
-cd ..
-echo ""
-
-echo -e "${BLUE}🔐 Step 4: Setting up attestation service...${NC}"
-cd attestation-service
-npm install
+# 3) compile & deploy
+echo "[3/6] Building & deploying V2 (Amoy testnet by default)..."
 npm run build
-if [ ! -f ".env" ]; then
-    cp .env.example .env
-    echo -e "${YELLOW}📝 Please edit attestation-service/.env with your settings${NC}"
-fi
-cd ..
-echo -e "${GREEN}✅ Attestation service ready${NC}"
-echo ""
+npx hardhat run scripts/deployV2.ts --network amoy | tee .deploy.out
 
-echo -e "${BLUE}🚀 Step 5: Deployment options${NC}"
-echo ""
-echo "Choose your deployment method:"
-echo "1) Deploy to testnet (requires .env configuration)"
-echo "2) Skip deployment for now"
-echo ""
-read -p "Enter your choice (1-2): " choice
+ATTESTERS=$(grep '^AttesterRegistry:' .deploy.out | awk '{print $2}')
+COMPLIANCE=$(grep '^ComplianceRegistry:' .deploy.out | awk '{print $2}')
+VAULT=$(grep '^ProofOfFundsVault:' .deploy.out | awk '{print $2}')
+echo "Deployed:"
+echo "  ATTESTERS=$ATTESTERS"
+echo "  COMPLIANCE=$COMPLIANCE"
+echo "  VAULT=$VAULT"
 
-case $choice in
-    1)
-        echo -e "${BLUE}🌐 Deploying to testnet...${NC}"
-        if [ -f ".env" ] && grep -q "RPC_URL=" ".env" && grep -q "PRIVATE_KEY=" ".env"; then
-            npm run deploy:v2
-            echo -e "${GREEN}✅ Deployment completed!${NC}"
-        else
-            echo -e "${RED}❌ Please configure your .env file first${NC}"
-            echo "Required variables: RPC_URL, PRIVATE_KEY"
-        fi
-        ;;
-    2)
-        echo -e "${YELLOW}⏭️  Skipping deployment${NC}"
-        ;;
-    *)
-        echo -e "${RED}Invalid choice${NC}"
-        ;;
-esac
+# 4) attestation service
+echo "[4/6] Installing attestation service deps..."
+pushd attestation-service >/dev/null
+npm init -y >/dev/null 2>&1 || true
+npm i express ethers
+cat > .env <<EOF
+PORT=8787
+ATTESTER_PRIVATE_KEY=${ATTESTER_PRIVATE_KEY:-0xYOUR_ATTESTER_KEY}
+KYC_PROVIDER_ADDRESS=${KYC_PROVIDER_ADDRESS:-$ATTESTERS}
+IP_SALT=${IP_SALT:-change-me}
+RPC_URL=${RPC_URL:-}
+LICENSE_PATH=${LICENSE_PATH:-PoF-License-v1.pdf}
+IPFS_ENABLED=false
+EOF
+popd >/dev/null
 
-echo ""
-echo -e "${GREEN}🎉 UPoF V2 Setup Complete!${NC}"
-echo "=================================="
-echo ""
-echo -e "${BLUE}📚 Next Steps:${NC}"
-echo ""
-echo "1. 📝 Configure environment files:"
-echo "   - Edit .env (contracts)"
-echo "   - Edit attestation-service/.env (attestation service)"
-echo ""
-echo "2. 🚀 Deploy contracts (if not done):"
-echo "   npm run deploy:v2"
-echo ""
-echo "3. 🏃 Start the services:"
-echo "   # Terminal 1: Attestation service"
-echo "   cd attestation-service && npm run dev"
-echo ""
-echo "   # Terminal 2: Frontend"
-echo "   cd app && npm run dev"
-echo ""
-echo "4. 🌐 Access the app:"
-echo "   http://localhost:5173"
-echo ""
-echo -e "${BLUE}📖 Documentation:${NC}"
-echo "   - README.md - Complete setup guide"
-echo "   - GitHub: https://github.com/kevanbtc/One-piece"
-echo ""
-echo -e "${GREEN}💡 Pro Tips:${NC}"
-echo "   - Use Polygon Amoy testnet for testing"
-echo "   - Get test USDC from faucets for escrow mode"
-echo "   - Check attestation service logs for KYC/AML details"
-echo ""
-echo -e "${YELLOW}⚠️  Security Reminders:${NC}"
-echo "   - Never commit private keys to git"
-echo "   - Use HSM or secure key management in production"
-echo "   - Regularly rotate attestation service keys"
-echo ""
+# 5) app envs
+echo "[5/6] Configuring frontend..."
+pushd app >/dev/null
+npm i
+cat > .env <<EOF
+VITE_VAULT_ADDR=${VAULT}
+VITE_REGISTRY_ADDR=${ATTESTERS}
+VITE_ATTEST_URL=http://localhost:8787/attest
+VITE_KYC_REQUIRED=true
+VITE_SANCTIONS_DATE=2025-09-01
+VITE_UNIQUE_POLICY=per-asset
+EOF
+popd >/dev/null
 
-# Check if git is initialized and suggest GitHub setup
-if [ -d ".git" ]; then
-    echo -e "${BLUE}📦 Git repository initialized${NC}"
-    echo "   - Already connected to GitHub: kevanbtc/One-piece"
-else
-    echo -e "${YELLOW}💡 Initialize git repository:${NC}"
-    echo "   git init && git add . && git commit -m 'Initial commit'"
-fi
+# 6) run stack
+echo "[6/6] Starting services..."
+# start attestation service
+(node ./attestation-service/src/attestation.ts &) >/dev/null 2>&1 || true
+echo "Attestation service on :8787"
+echo "Run manually in another terminal if needed: node attestation-service/src/attestation.ts"
 
-echo ""
-echo -e "${GREEN}🚀 Ready to revolutionize Proof of Funds!${NC}"
+echo "Start the app with:"
+echo "  cd app && npm run dev"
+echo "Open http://localhost:5173"

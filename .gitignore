@@ -1,0 +1,52 @@
+# Dependencies
+node_modules/
+*/node_modules/
+
+# Environment files
+.env
+.env.local
+.env.production
+.env.staging
+
+# Build outputs
+dist/
+build/
+out/
+*/dist/
+*/build/
+
+# Hardhat
+cache/
+artifacts/
+typechain-types/
+
+# Logs
+*.log
+logs/
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Temporary files
+*.tmp
+*.temp
+
+# Private keys and sensitive files
+*.pem
+*.key
+*.wallet
+keystore/
+
+# Coverage
+coverage/
+*.lcov
+
+# Misc
+.nyc_output

@@ -14,11 +14,12 @@ const UNIQUE_POLICY = import.meta.env.VITE_UNIQUE_POLICY || "per-asset"; // or "
 
 // Minimal ABI fragments
 const VAULT_ABI = [
-  "function mintEscrow(address asset,uint256 amount,uint256 expiry) external returns (uint256)",
-  "function mintAttested(address account,address asset,uint256 amount,uint256 expiry,uint8 v,bytes32 r,bytes32 s,address kycProvider,bytes32 kycRef,bytes32 sanctionsVersion,string compliancePackCID,bytes32 licenseHash,bytes32 uniqueKey) external returns (uint256)",
-  "function verify(uint256 tokenId,address requiredAsset,uint256 minAmount) external view returns (bool,string)",
-  "function tokenURI(uint256 tokenId) external view returns (string)",
-  "function recordClientIp(uint256 tokenId,bytes32 clientIpHash) external",
+  "function mintEscrow(address,uint256,uint256,address,bytes32,bytes32,string,bytes32,bytes32) returns (uint256)",
+  "function mintAttested(address,address,uint256,uint256,uint8,bytes32,bytes32,address,bytes32,bytes32,string,bytes32,bytes32) returns (uint256)",
+  "function verify(uint256,address,uint256) view returns (bool,string)",
+  "function tokenURI(uint256) view returns (string)",
+  "function recordClientIp(uint256,bytes32)",
+  "function nonces(address) view returns (uint256)"
 ];
 const ERC20_ABI = [
   "function approve(address spender,uint256 amount) external returns (bool)",
@@ -74,7 +75,16 @@ export default function App() {
     }
 
     const exp = expiry ? BigInt(Math.floor(new Date(expiry).getTime() / 1000)) : 0n;
-    const tx = await vault.connect(signer).mintEscrow(asset, amt, exp);
+    // Use legacy escrow mode (V2 supports both legacy and compliance versions)
+    const tx = await vault.connect(signer).mintEscrow(
+      asset, amt, exp,
+      "0x0000000000000000000000000000000000000000", // kycProvider
+      "0x0000000000000000000000000000000000000000000000000000000000000000", // kycRef
+      "0x0000000000000000000000000000000000000000000000000000000000000000", // sanctionsVersion
+      "", // compliancePackCID
+      "0x0000000000000000000000000000000000000000000000000000000000000000", // licenseHash
+      "0x0000000000000000000000000000000000000000000000000000000000000000"  // uniqueKey
+    );
     const rec = await tx.wait();
     const evt = rec?.logs?.find((l: any) => l.fragment?.name === "Minted");
     // @ts-ignore

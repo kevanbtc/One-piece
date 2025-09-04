@@ -4,6 +4,7 @@
   "private": true,
   "scripts": {
     "build": "hardhat compile",
+    "test": "hardhat test",
     "deploy": "hardhat run scripts/deploy.ts --network amoy",
     "deploy:v2": "hardhat run scripts/deployV2.ts --network amoy",
     "verify": "hardhat verify --network amoy",

@@ -290,6 +290,34 @@ POST /attest
 
 ---
 
+## 🔐 **Security**
+
+### **Smart Contract Security**
+- **No PII on-chain**: All sensitive data is hashed before storage
+- **Access controls**: Owner-only functions for admin operations
+- **Reentrancy protection**: All state-changing functions use ReentrancyGuard
+- **Overflow protection**: Solidity 0.8.20+ built-in overflow checks
+
+### **Attestation Service Security**
+- **HSM recommended**: Use hardware security modules for attester private keys in production
+- **Key rotation**: Regularly rotate attester keys and update AttesterRegistry
+- **IP privacy**: Client IP addresses are salted and hashed before logging
+- **Audit trails**: All compliance actions are logged with timestamps
+
+### **Operational Security**
+- **Environment isolation**: Keep testnet and mainnet configurations separate
+- **Secrets management**: Never commit private keys or API keys to version control
+- **Access control**: Limit admin privileges to essential personnel only
+- **Monitoring**: Set up alerts for unusual contract activity
+
+### **Compliance Considerations**
+- **Soulbound mode**: Enable for strict regulatory environments
+- **KYC provider vetting**: Only whitelist trusted KYC/AML providers
+- **Data retention**: Comply with local data retention requirements for compliance packs
+- **Regulatory reporting**: Maintain audit trails for regulatory compliance
+
+---
+
 ## 🤝 **Contributing**
 
 1. **Fork** the repository

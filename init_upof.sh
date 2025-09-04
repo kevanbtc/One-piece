@@ -68,9 +68,9 @@ popd >/dev/null
 # 6) run stack
 echo "[6/6] Starting services..."
 # start attestation service
-(node ./attestation-service/src/attestation.ts &) >/dev/null 2>&1 || true
+(cd attestation-service && npx ts-node src/attestation.ts &) >/dev/null 2>&1 || true
 echo "Attestation service on :8787"
-echo "Run manually in another terminal if needed: node attestation-service/src/attestation.ts"
+echo "Run manually in another terminal if needed: cd attestation-service && npm run dev"
 
 echo "Start the app with:"
 echo "  cd app && npm run dev"

@@ -1,0 +1,116 @@
+name: Release
+
+on:
+  release:
+    types: [created]
+
+jobs:
+  build-artifacts:
+    runs-on: ubuntu-latest
+    
+    steps:
+    - uses: actions/checkout@v4
+    
+    - name: Setup Node.js
+      uses: actions/setup-node@v4
+      with:
+        node-version: '20'
+        cache: 'npm'
+    
+    - name: Install dependencies
+      run: npm ci
+    
+    - name: Compile contracts
+      run: npm run build
+    
+    - name: Create release artifacts
+      run: |
+        mkdir -p release/abis
+        mkdir -p release/deployments
+        
+        # Copy contract ABIs
+        cp artifacts/contracts/AttesterRegistry.sol/AttesterRegistry.json release/abis/
+        cp artifacts/contracts/ComplianceRegistry.sol/ComplianceRegistry.json release/abis/
+        cp artifacts/contracts/ProofOfFundsVaultV2.sol/ProofOfFundsVaultV2.json release/abis/
+        
+        # Create deployment template
+        cat > release/deployments/amoy.json << EOF
+        {
+          "chainId": 80002,
+          "network": "polygon-amoy",
+          "contracts": {
+            "AttesterRegistry": "0x...",
+            "ComplianceRegistry": "0x...",
+            "ProofOfFundsVaultV2": "0x..."
+          }
+        }
+        EOF
+        
+        # Create integration guide
+        cat > release/INTEGRATION.md << 'EOF'
+        # UPoF V2 Integration Guide
+        
+        ## Quick Start
+        
+        \`\`\`bash
+        npm install ethers
+        \`\`\`
+        
+        ## Contract ABIs
+        
+        - \`AttesterRegistry.json\` - Manages whitelisted attesters
+        - \`ComplianceRegistry.json\` - KYC/AML provider registry
+        - \`ProofOfFundsVaultV2.json\` - Main PoF NFT contract
+        
+        ## Example Integration
+        
+        \`\`\`javascript
+        import { ethers } from 'ethers';
+        import VaultABI from './abis/ProofOfFundsVaultV2.json';
+        
+        const vault = new ethers.Contract(VAULT_ADDRESS, VaultABI.abi, provider);
+        
+        // Verify a PoF
+        const [isValid, reason] = await vault.verify(tokenId, requiredAsset, minAmount);
+        if (isValid) {
+          console.log('✅ Valid PoF');
+        } else {
+          console.log('❌ Invalid:', reason);
+        }
+        \`\`\`
+        EOF
+        
+        # Create changelog
+        cat > release/CHANGELOG.md << 'EOF'
+        # UPoF V2 Release Notes
+        
+        ## 🔒 Enterprise Compliance Features
+        - KYC/AML provider integration
+        - Sanctions screening with version tracking
+        - Uniqueness guarantees prevent duplicate PoFs
+        - IP audit trails (Intellectual Property + Internet Protocol)
+        - Soulbound mode for non-transferable tokens
+        
+        ## 🚀 Technical Improvements  
+        - EIP-712 attestation signatures
+        - On-chain SVG metadata generation
+        - IPFS compliance pack storage
+        - Privacy-safe IP address logging
+        
+        ## 🏛️ Production Ready
+        - Comprehensive test suite
+        - CI/CD pipeline
+        - Security audits
+        - Multi-chain deployment support
+        EOF
+    
+    - name: Upload release artifacts
+      uses: softprops/action-gh-release@v1
+      with:
+        files: |
+          release/abis/*.json
+          release/deployments/*.json
+          release/INTEGRATION.md
+          release/CHANGELOG.md
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
